@@ -1,0 +1,15 @@
+.button {
+    -fx-background-color: #819ca9;
+}
+
+.jfx-check-box {
+    -jfx-checked-color: #819ca9;
+}
+
+.jfx-snackbar-layout{
+    -fx-background-color: #819ca9;
+}
+
+.jfx-snackbar-toast {
+    -fx-text-fill: #000000;
+}

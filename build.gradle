@@ -1,0 +1,52 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.0.8'
+    id 'org.beryx.jlink' version '2.15.1'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'com.github.lanchon.dexpatcher', name: 'multidexlib2', version: '2.3.4'
+    implementation group: 'com.jfoenix', name: 'jfoenix', version: '9.0.9'
+    compile group: 'org.openjfx', name: "javafx-base", version: '11', classifier: 'linux'
+}
+
+javafx {
+    version = "15"
+    modules = [ 'javafx.controls', 'javafx.fxml' ]
+}
+
+run {
+    jvmArgs = [
+            "--add-exports=javafx.controls/com.sun.javafx.scene.control.behavior=ALL-UNNAMED",
+            "--add-exports=javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED",
+            "--add-exports=javafx.base/com.sun.javafx.binding=ALL-UNNAMED",
+            "--add-exports=javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED",
+            "--add-exports=javafx.controls/com.sun.javafx.scene.control.behavior=ALL-UNNAMED",
+            "--add-exports=javafx.graphics/com.sun.javafx.scene=ALL-UNNAMED",
+    ]
+}
+
+
+jlink {
+    launcher {
+        name = 'deobfuscator-full'
+        jvmArgs = [
+                "--add-exports=javafx.controls/com.sun.javafx.scene.control.behavior=com.jfoenix",
+                "--add-exports=javafx.controls/com.sun.javafx.scene.control=com.jfoenix",
+                "--add-exports=javafx.base/com.sun.javafx.binding=com.jfoenix",
+                "--add-exports=javafx.graphics/com.sun.javafx.stage=com.jfoenix",
+                "--add-exports=javafx.controls/com.sun.javafx.scene.control.behavior=com.jfoenix",
+                "--add-exports=javafx.graphics/com.sun.javafx.scene=ALL-UNNAMED",
+        ]
+    }
+}
+
+group 'org.thesis'
+version '1.0-SNAPSHOT'
+
+mainClassName = 'org.thesis.MainApp'
