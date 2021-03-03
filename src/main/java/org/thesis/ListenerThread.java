@@ -13,14 +13,16 @@ public abstract class ListenerThread extends Thread {
     private final Set<ThreadCompleteListener> listeners
             = new CopyOnWriteArraySet<ThreadCompleteListener>();
     public final void addListener(final ThreadCompleteListener listener) {
-        listeners.add(listener);
+        if (listener != null)
+            listeners.add(listener);
     }
     public final void removeListener(final ThreadCompleteListener listener) {
         listeners.remove(listener);
     }
     protected final void notifyListeners() {
         for (ThreadCompleteListener listener : listeners) {
-            listener.notifyOfThreadComplete(this);
+            if (listener != null)
+                listener.notifyOfThreadComplete(this);
         }
     }
 }

@@ -1,4 +1,4 @@
-package org.thesis.fxelements;
+package org.thesis.ui.fxelements;
 
 import org.jf.dexlib2.iface.TryBlock;
 import org.jf.dexlib2.iface.instruction.*;

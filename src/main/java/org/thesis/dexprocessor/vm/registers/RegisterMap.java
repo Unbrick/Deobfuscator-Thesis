@@ -1,11 +1,19 @@
 package org.thesis.dexprocessor.vm.registers;
 
-import java.util.HashMap;
+import org.jf.dexlib2.iface.Method;
 
-public class RegisterMap extends HashMap<Integer, Register> {
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+
+public class RegisterMap extends HashMap<Integer, Register> implements Cloneable {
 
     public RegisterMap(int registerCount) {
         init(registerCount);
+    }
+
+    public RegisterMap(Map<? extends Integer, ? extends Register> m) {
+        super(m);
     }
 
     private void init(int registerCount) {
@@ -36,10 +44,10 @@ public class RegisterMap extends HashMap<Integer, Register> {
         return super.put(key, mRegister);
     }
 
-    public void clearAndInit() {
-        int registerCount = size();
+    public void clearAndInit(Method mMethod) {
+        int registerCount = Objects.requireNonNull(mMethod.getImplementation()).getRegisterCount();
         clear();
-        init(registerCount);
+        init(Math.max(registerCount, 255));
     }
 
     @Override

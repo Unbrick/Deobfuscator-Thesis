@@ -1,4 +1,4 @@
-package org.thesis.fxelements;
+package org.thesis.ui.fxelements;
 
 import javafx.beans.property.SimpleStringProperty;
 import org.jf.dexlib2.iface.Field;

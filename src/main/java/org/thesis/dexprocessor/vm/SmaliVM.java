@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import org.jf.dexlib2.builder.BuilderInstruction;
 import org.jf.dexlib2.builder.BuilderOffsetInstruction;
 import org.jf.dexlib2.builder.Label;
+import org.jf.dexlib2.builder.MutableMethodImplementation;
 import org.jf.dexlib2.builder.instruction.BuilderInstruction31t;
 import org.jf.dexlib2.builder.instruction.BuilderPackedSwitchPayload;
 import org.jf.dexlib2.builder.instruction.BuilderSwitchElement;
@@ -13,21 +14,26 @@ import org.jf.dexlib2.iface.instruction.*;
 import org.jf.dexlib2.iface.reference.FieldReference;
 import org.jf.dexlib2.iface.reference.MethodReference;
 import org.jf.dexlib2.iface.reference.Reference;
-import org.thesis.MainApp;
+import org.thesis.Logger;
 import org.thesis.dexprocessor.exceptions.InconsistentBranchConditionException;
 import org.thesis.dexprocessor.exceptions.LoopException;
 import org.thesis.dexprocessor.exceptions.ReachedReturnStatementException;
 import org.thesis.dexprocessor.exceptions.RegisterNotInitializedException;
 import org.thesis.dexprocessor.vm.instancefields.FieldMap;
 import org.thesis.dexprocessor.vm.registers.RegisterMap;
-import org.thesis.dexprocessor.vm.registers.RegisterState;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.thesis.dexprocessor.vm.registers.RegisterState.*;
+
 public class SmaliVM {
 
     private static SmaliVM instance;
+
+    // insecure mode is set in case the execution starting from the begin did not work
+    // it only allows matching register values with branch conditions, in case the default branch would be taken, optimisation is skipped
+    private boolean insecureMode = false;
     public int currentInstructionIndex = 0;
     public boolean ignoreLoopException = false;
     public boolean ignoreReturnStatementException = false;
@@ -37,9 +43,9 @@ public class SmaliVM {
     public FieldMap mFields;
     public MethodManager mMethodManager;
 
-    public static SmaliVM getInstance(ClassDef mClass, Method mMethod) {
+    public static SmaliVM getInstance(ClassDef mClass, Method mMethod, MutableMethodImplementation mMutable) {
         if (instance == null)
-            instance = new SmaliVM(mClass, mMethod);
+            instance = new SmaliVM(mClass, mMethod, mMutable);
 
         if (!mMethod.getName().equals("<clinit>")) {
             instance.currentInstructionIndex = 0;
@@ -48,57 +54,71 @@ public class SmaliVM {
             instance.executeClinit();
         }
 
-        instance.mMethodManager.selectMethod(mMethod);
+        instance.insecureMode = false;
+        instance.mMethodManager.selectMethod(mMethod, mMutable);
         instance.currentInstructionIndex = 0;
         instance.jumpAddressList = Lists.newArrayList();
-        instance.mRegisters.clearAndInit();
+        instance.mRegisters.clearAndInit(mMethod);
 
         return instance;
     }
 
-    private SmaliVM(ClassDef mClass, Method mMethod) {
+    private SmaliVM(ClassDef mClass, Method mMethod, MutableMethodImplementation mMutable) {
         this.currentInstructionIndex = 0;
         this.mRegisters = new RegisterMap(50);
         this.mFields = new FieldMap(mClass.getFields());
-        this.mMethodManager = new MethodManager(mClass, mMethod);
+        this.mMethodManager = new MethodManager(mClass, mMethod, mMutable);
     }
 
-    public RegisterMap runWithInconsistentBranchConditionDetection(int stopAtIndex, int conditionalRegister) {
-        RegisterMap mLastVM = this.run(0, stopAtIndex);
-        try {
-            ignoreLoopException = true;
-            RegisterMap mCurrentVM = this.run(currentInstructionIndex, currentInstructionIndex - 1);
-            if (mLastVM != null && mCurrentVM != null) {
-                int lastVMRegister = mLastVM.get(conditionalRegister).getPrimitiveValue();
-                int currentVMRegister = mCurrentVM.get(conditionalRegister).getPrimitiveValue();
-                if (lastVMRegister != currentVMRegister) {
-                    throw new InconsistentBranchConditionException();
+    public boolean isInsecureMode() {
+        return insecureMode;
+    }
+
+    public RegisterMap runWithInconsistentBranchConditionDetection(int stopAtIndex) {
+        RegisterMap mVMRegisters = null;
+
+        for (int i = 1; i <= 3; i++) {
+            // Try starting from 0, if this does not work, try to start from packed-switch - 5; packed-switch - 10; packed-switch - 15
+            // This can circumvent unknown branches or register values
+            int startIndex = i == 1 ? 0 : Math.max((stopAtIndex - i * 10), 0);
+            try {
+                if (i > 1) {
+                    insecureMode = true;
                 }
+                mVMRegisters = this.run(startIndex, stopAtIndex);
+                // if the run succeded, break the loop
+                break;
+            } catch (InconsistentBranchConditionException | RegisterNotInitializedException e) {
+                Logger.debug("SmaliVM", "Execution failed from index "+ startIndex +", trying from index " + Math.max((stopAtIndex - i * 10), 0));
             }
-            ignoreLoopException = false;
-            mLastVM = mCurrentVM;
-        } catch (ReachedReturnStatementException e) {
-            if (mLastVM != null)
-                return mLastVM; // the switch statement was reached in the first instance, continuing execution lead to a return
+        }
+        try {
+            // continue to run from the current instruction index to see if we are running in a loop
+            // This instance of run should throw a ReachedReturnStatementException or any other exception
+            // If it terminates at the packed-switch instruction - 1 we are most probably running in a loop
+            this.run(currentInstructionIndex, currentInstructionIndex - 1);
+            // If we terminate here the packed-switch is running inside a loop and we cannot optimize it
+            throw new LoopException(0xDEADBEEF);
+        } catch (ReachedReturnStatementException | RegisterNotInitializedException e) {
+            if (mVMRegisters != null)
+                return mVMRegisters; // the switch statement was reached in the first instance, continuing execution lead to a return
             throw e;
         }
-
-        return mLastVM;
     }
 
     private void executeClinit() {
         this.mMethodManager.selectMethod("<clinit>", Lists.newArrayList(), "V");
-        this.run(0, 15);
-        this.mRegisters.clearAndInit();
+        this.run(0, 10);
+        this.mRegisters.clearAndInit(this.mMethodManager.getMethod());
     }
 
     public RegisterMap run(int startIndex, int stopAtIndex) {
-        MainApp.log("SmaliVM", "Executing " + mMethodManager.getMethodName());
+        Logger.debug("SmaliVM", "Executing " + mMethodManager.getMethodName());
         this.currentInstructionIndex = startIndex;
         while (mMethodManager.hasNextInstruction(currentInstructionIndex) && currentInstructionIndex != stopAtIndex)
             step();
-        MainApp.log("SmaliVM", "Finished executing at " + this.currentInstructionIndex + ", registers are " + this.mRegisters);
-        return mRegisters;
+        Logger.debug("SmaliVM", "Finished executing at " + this.currentInstructionIndex + ", registers are " + this.mRegisters);
+        return new RegisterMap(mRegisters);
     }
 
 
@@ -109,8 +129,10 @@ public class SmaliVM {
     }
 
     public void jump(Label target) {
+        // decrease the target index to counter the increment at the end of opcode execution
         int targetIndex = target.getLocation().getIndex() - 1;
-        if (jumpAddressList.contains(targetIndex) && !ignoreLoopException) {
+        // when hitting the same address for the third time throw a loop exception
+        if (jumpAddressList.stream().filter(integer -> integer.equals(targetIndex)).count() > 15) {
             throw new LoopException(jumpAddressList.get(0));
         }
         jumpAddressList.add(targetIndex);
@@ -118,9 +140,13 @@ public class SmaliVM {
     }
 
     public void processInstruction(BuilderInstruction mInstruction) {
-        int vX = 0;
-        int vY = 1;
-        int vZ = 2;
+        int vX = -1;
+        int vY = -1;
+        int vZ = -1;
+
+        int numvX = -1;
+        int numvY = -1;
+        int numvZ = -1;
 
         int literal = 0;
         Label offset = null;
@@ -128,20 +154,16 @@ public class SmaliVM {
         String mMethodReference = null;
 
         if (mInstruction instanceof OneRegisterInstruction) {
-            int mReg = ((OneRegisterInstruction) mInstruction).getRegisterA();
-            vX = this.mRegisters.get(mReg).getPrimitiveValue();
+            numvX = ((OneRegisterInstruction) mInstruction).getRegisterA();
+            vX = this.mRegisters.get(numvX).getPrimitiveValue();
         }
         if (mInstruction instanceof TwoRegisterInstruction) {
-            int mReg = ((TwoRegisterInstruction) mInstruction).getRegisterB();
-            if (this.mRegisters.get(mReg).getState() == RegisterState.UNINITIALIZED)
-                throw new RegisterNotInitializedException(mReg);
-            vY = this.mRegisters.get(mReg).getPrimitiveValue();
+            numvY = ((TwoRegisterInstruction) mInstruction).getRegisterB();
+            vY = this.mRegisters.get(numvY).getPrimitiveValue();
         }
         if (mInstruction instanceof ThreeRegisterInstruction) {
-            int mReg = ((ThreeRegisterInstruction) mInstruction).getRegisterC();
-            if (this.mRegisters.get(mReg).getState() == RegisterState.UNINITIALIZED)
-                throw new RegisterNotInitializedException(mReg);
-            vZ = this.mRegisters.get(mReg).getPrimitiveValue();
+            numvZ = ((ThreeRegisterInstruction) mInstruction).getRegisterC();
+            vZ = this.mRegisters.get(numvZ).getPrimitiveValue();
         }
         if (mInstruction instanceof NarrowLiteralInstruction) {
             literal = ((NarrowLiteralInstruction) mInstruction).getNarrowLiteral();
@@ -185,6 +207,25 @@ public class SmaliVM {
             case SGET_SHORT:
             case SGET:
                 vX = mFields.get(mFieldReference).getPrimitiveValue();
+                break;
+            case IGET_OBJECT:
+            case IGET_BOOLEAN:
+            case IGET_BOOLEAN_QUICK:
+            case IGET_BYTE:
+            case IGET_BYTE_QUICK:
+            case IGET:
+            case IGET_CHAR:
+            case IGET_CHAR_QUICK:
+            case IGET_OBJECT_QUICK:
+            case IGET_OBJECT_VOLATILE:
+            case IGET_QUICK:
+            case IGET_SHORT:
+            case IGET_SHORT_QUICK:
+            case IGET_VOLATILE:
+            case IGET_WIDE:
+            case IGET_WIDE_QUICK:
+            case IGET_WIDE_VOLATILE:
+                vX = assign_field(mFieldReference);
                 break;
             case XOR_INT:
                 vX = vY ^ vZ;
@@ -255,50 +296,63 @@ public class SmaliVM {
                 vX = vY | literal;
                 break;
             case IF_EQZ:
+                check_register_state_known(numvX);
+                //TODO if register state is unknown, take both poss
                 if (vX == 0)
                     jump(offset);
                 break;
-            case IF_GEZ: // lit >= 0
+            case IF_GEZ:
+                check_register_state_known(numvX);
                 if (vX >= 0)
                     jump(offset);
                 break;
             case IF_GTZ:
+                check_register_state_known(numvX);
                 if (vX > 0)
                     jump(offset);
                 break;
             case IF_LEZ:
+                check_register_state_known(numvX);
                 if (vX <= 0)
                     jump(offset);
                 break;
             case IF_LTZ:
+                check_register_state_known(numvX);
                 if (vX < 0)
                     jump(offset);
                 break;
             case IF_NEZ:
+                check_register_state_known(numvX);
                 if (vX != 0)
                     jump(offset);
                 break;
             case IF_EQ:
+                check_register_state_known(numvX, numvY);
                 if (vX == vY)
                     jump(offset);
                 break;
             case IF_GE:
+                check_register_state_known(numvX, numvY);
                 if (vX >= vY)
                     jump(offset);
                 break;
             case IF_GT:
+                check_register_state_known(numvX, numvY);
                 if (vX > vY)
                     jump(offset);
                 break;
             case IF_LE:
+                check_register_state_known(numvX, numvY);
                 if (vX <= vY)
                     jump(offset);
                 break;
             case IF_LT:
+                check_register_state_known(numvX, numvY);
                 if (vX < vY)
                     jump(offset);
                 break;
             case IF_NE:
+                check_register_state_known(numvX, numvY);
                 if (vX != vY)
                     jump(offset);
                 break;
@@ -342,17 +396,16 @@ public class SmaliVM {
                 vX = vY;
                 break;
             case MOVE_RESULT_WIDE:
-                vY = 0xCAFEBABE;
+                vY = 0xF0F0F0;
             case MOVE_RESULT:
-                // TODO unknown register
+                vX = 0xF0F0F0;
                 break;
             case MOVE_EXCEPTION:
             case MOVE_OBJECT:
-
             case MOVE_OBJECT_16:
             case MOVE_OBJECT_FROM16:
             case MOVE_RESULT_OBJECT:
-                vX = 0xCAFEBABE;
+                vX = 0xF0F0F0;
                 break;
             case PACKED_SWITCH:
                 BuilderInstruction31t packedSwitch = (BuilderInstruction31t) mInstruction;
@@ -383,21 +436,60 @@ public class SmaliVM {
             break;
         }
 
-        if (mInstruction instanceof ThreeRegisterInstruction) {
-            int mReg = ((ThreeRegisterInstruction) mInstruction).getRegisterC();
-            this.mRegisters.put(mReg, vZ);
-        }
-        if (mInstruction instanceof TwoRegisterInstruction) {
-            int mReg = ((TwoRegisterInstruction) mInstruction).getRegisterB();
-            this.mRegisters.put(mReg, vY);
-        }
-        if (mInstruction instanceof OneRegisterInstruction) {
-            int mReg = ((OneRegisterInstruction) mInstruction).getRegisterA();
-            this.mRegisters.put(mReg, vX);
-        }
-
-        // System.out.println("SmaliVM: Executed Instruction " + FormatHelper.instructionToString(mInstruction));
-
         currentInstructionIndex++;
+
+        if (mInstruction instanceof OneRegisterInstruction) {
+            int _vX = ((OneRegisterInstruction) mInstruction).getRegisterA();
+            if (mInstruction instanceof TwoRegisterInstruction) {
+                int _vY = ((TwoRegisterInstruction) mInstruction).getRegisterB();
+                if (mRegisters.get(_vY).getState() == UNINITIALIZED || mRegisters.get(_vY).getState() == UNKNOWN) {
+                    //register value vX depends on unknown or uninitialized register value vY, populate vX as unknown
+                    //no writeback is required
+                    mRegisters.get(_vX).setState(UNKNOWN);
+                    return;
+                }
+                if (mInstruction instanceof ThreeRegisterInstruction) {
+                    int _vZ = ((ThreeRegisterInstruction) mInstruction).getRegisterC();
+                    if (mRegisters.get(_vZ).getState() == UNINITIALIZED || mRegisters.get(_vZ).getState() == UNKNOWN) {
+                        //register value vX depends on unknown or uninitialized register value vZ, populate vX as unknown
+                        //no writeback is required
+                        mRegisters.get(_vX).setState(UNKNOWN);
+                        return;
+                    }
+                }
+            }
+
+            // lets check whether a object is hiding in the vX register
+            if (vX == 0xF0F0F0) {
+                mRegisters.get(_vX).setState(OBJECT);
+                return;
+            } else if (vX == 0xA0A0A0) {
+                mRegisters.get(_vX).setState(UNKNOWN);
+                return;
+            }
+
+            // reaching this point means either the instruction is a one register instructions
+            // or otherwise all other registers involved are known
+            // we can write back the register value as new integer value
+            this.mRegisters.put(_vX, vX);
+        }
+    }
+
+    private int assign_field(String mFieldReference) {
+        if (mFields.containsKey(mFieldReference) && mFields.get(mFieldReference).getState().isPrimitive())
+            return mFields.get(mFieldReference).getPrimitiveValue();
+        else if (mFields.containsKey(mFieldReference) && mFields.get(mFieldReference).getState().isNonPrimitive())
+            return 0xF0F0F0;
+        else return 0xA0A0A0;
+    }
+
+    private void check_register_state_known(int vX, int vY) {
+        check_register_state_known(vX);
+        check_register_state_known(vY);
+    }
+
+    private void check_register_state_known(int vX) {
+        if (mRegisters.get(vX).getState() == UNKNOWN || mRegisters.get(vX).getState() == UNINITIALIZED || mRegisters.get(vX).getState() == OBJECT)
+            throw new RegisterNotInitializedException(vX);
     }
 }

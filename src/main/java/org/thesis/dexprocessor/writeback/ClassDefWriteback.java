@@ -1,6 +1,6 @@
 package org.thesis.dexprocessor.writeback;
 
-import com.google.common.collect.Lists;
+import org.jf.dexlib2.Format;
 import org.jf.dexlib2.iface.Annotation;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.Field;
@@ -9,19 +9,24 @@ import org.jf.dexlib2.rewriter.ClassDefRewriter;
 import org.jf.dexlib2.rewriter.Rewriter;
 import org.jf.dexlib2.rewriter.RewriterModule;
 import org.jf.dexlib2.rewriter.Rewriters;
+import org.thesis.Logger;
+import org.thesis.dexprocessor.FormatHelper;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.IntStream;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class ClassDefWriteback extends RewriterModule {
 
-    private final Method method;
+    private final List<Method> deobfuscatedMethods;
 
-    public ClassDefWriteback(Method mMethod) {
-        this.method = mMethod;
+    public ClassDefWriteback(List<Method> mMethods) {
+        this.deobfuscatedMethods = mMethods;
     }
 
     @Nonnull
@@ -88,19 +93,20 @@ public class ClassDefWriteback extends RewriterModule {
                     @Nonnull
                     @Override
                     public Iterable<? extends Method> getDirectMethods() {
-                        return replaceMethodIfExists(Lists.newArrayList(mClassDef.getDirectMethods()), method);
+                        return getMethodsOfType(mClassDef, deobfuscatedMethods, MethodType.DIRECT);
                     }
 
                     @Nonnull
                     @Override
                     public Iterable<? extends Method> getVirtualMethods() {
-                        return replaceMethodIfExists(Lists.newArrayList(mClassDef.getVirtualMethods()), method);
+                        return getMethodsOfType(mClassDef, deobfuscatedMethods, MethodType.VIRTUAL);
                     }
 
                     @Nonnull
                     @Override
                     public Iterable<? extends Method> getMethods() {
-                        return replaceMethodIfExists(Lists.newArrayList(mClassDef.getMethods()), method);
+                        Logger.debug("Writeback", "Replacing deobfuscated methods of class " + FormatHelper.getClassSimpleName(mClassDef));
+                        return deobfuscatedMethods;
                     }
 
                     @Override
@@ -132,17 +138,37 @@ public class ClassDefWriteback extends RewriterModule {
         };
     }
 
-    private Iterable<? extends Method> replaceMethodIfExists(List<Method> methods, Method mMethod) {
-        IntStream.range(0, methods.size())
-                .filter(value -> {
-                    Method m = methods.get(value);
-                    return m.getName().equals(mMethod.getName())
-                            && m.getAccessFlags() == mMethod.getAccessFlags()
-                            && m.getParameters().equals(mMethod.getParameters())
-                            && m.getReturnType().equals(mMethod.getReturnType());
-                })
-                .findFirst()
-                .ifPresent(value -> methods.set(value, mMethod));
-        return methods;
+    public enum MethodType {
+        DIRECT,
+        VIRTUAL;
+    }
+
+    private ArrayList<? extends Method> getMethodsOfType(ClassDef mClass, List<Method> methods, MethodType methodType) {
+        return methods.stream().filter(m -> getMethodType(mClass, m) == methodType).collect(Collectors.toCollection(ArrayList::new));
+    }
+
+
+    private MethodType getMethodType(ClassDef mClass, Method methodInQuestion) {
+        AtomicReference<MethodType> methodType = new AtomicReference<>();
+
+        mClass.getDirectMethods().forEach((Consumer<Method>) method -> {
+            if (method.getName().equals(methodInQuestion.getName())
+                    && method.getAccessFlags() == methodInQuestion.getAccessFlags()
+                    && method.getParameters().equals(methodInQuestion.getParameters())
+                    && method.getReturnType().equals(methodInQuestion.getReturnType()))
+                methodType.set(MethodType.DIRECT);
+        });
+
+        mClass.getVirtualMethods().forEach((Consumer<Method>) method -> {
+            if (method.getName().equals(methodInQuestion.getName())
+                    && method.getAccessFlags() == methodInQuestion.getAccessFlags()
+                    && method.getParameters().equals(methodInQuestion.getParameters())
+                    && method.getReturnType().equals(methodInQuestion.getReturnType()))
+                methodType.set(MethodType.VIRTUAL);
+        });
+
+        Logger.debug("Found method type: ", String.valueOf(methodType));
+
+        return methodType.get();
     }
 }

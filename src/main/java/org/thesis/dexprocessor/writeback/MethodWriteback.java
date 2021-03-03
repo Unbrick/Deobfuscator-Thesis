@@ -1,9 +1,15 @@
 package org.thesis.dexprocessor.writeback;
 
-import org.jf.dexlib2.iface.*;
+import org.jf.dexlib2.iface.Annotation;
+import org.jf.dexlib2.iface.Method;
+import org.jf.dexlib2.iface.MethodImplementation;
+import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.iface.reference.MethodReference;
-import org.jf.dexlib2.rewriter.*;
+import org.jf.dexlib2.rewriter.MethodRewriter;
 import org.jf.dexlib2.rewriter.Rewriter;
+import org.jf.dexlib2.rewriter.RewriterModule;
+import org.jf.dexlib2.rewriter.Rewriters;
+import org.thesis.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,6 +69,7 @@ public class MethodWriteback extends RewriterModule {
                     @Nullable
                     @Override
                     public MethodImplementation getImplementation() {
+                        Logger.debug("MethodWriteback", "Writing deobfuscated method implementation of method " + method.getName());
                         return impl;
                     }
 

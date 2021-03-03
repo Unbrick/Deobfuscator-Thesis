@@ -13,7 +13,7 @@ public class GotoInstruction extends BuilderInstruction30t {
         this(Opcode.GOTO_32, target);
     }
 
-    private GotoInstruction(@Nonnull Opcode opcode, @Nonnull Label target) {
+    public GotoInstruction(@Nonnull Opcode opcode, @Nonnull Label target) {
         super(opcode, target);
     }
 

@@ -1,5 +1,6 @@
 package org.thesis.dexprocessor;
 
+import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.instruction.*;
 
 import java.util.ArrayList;
@@ -87,6 +88,12 @@ public class FormatHelper {
         }
 
         return mBuilder.toString();
+    }
+
+    public static String getClassSimpleName(ClassDef mClassDef) {
+        String fullClassDef = mClassDef.getType();
+        int lastSlash = mClassDef.getType().lastIndexOf("/");
+        return fullClassDef.substring(lastSlash + 1, fullClassDef.length() - 1);
     }
 
     public static void printInstruction(Instruction mInstruction) {

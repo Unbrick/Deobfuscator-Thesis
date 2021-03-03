@@ -1,0 +1,59 @@
+.button {
+    -fx-background-color: #819ca9;
+}
+
+.jfx-check-box {
+    -jfx-checked-color: #819ca9;
+}
+
+.jfx-snackbar-layout{
+    -fx-background-color: #819ca9;
+}
+
+.jfx-snackbar-toast {
+    -fx-text-fill: #000000;
+}
+
+
+.root {
+    -fx-base: rgb(33, 48, 54);
+    -fx-background: rgb(33, 48, 54);
+    -fx-border-color: rgb(44, 62, 69);
+
+    /* make controls (buttons, thumb, etc.) slightly lighter */
+    -fx-color: derive(-fx-base, 10%);
+
+    /* text fields and table rows background */
+    -fx-control-inner-background: rgb(41, 56, 62);
+    /* version of -fx-control-inner-background for alternative rows */
+    -fx-control-inner-background-alt: derive(-fx-control-inner-background, 2.5%);
+
+    /* text colors depending on background's brightness */
+    -fx-light-text-color: rgb(220, 220, 220);
+    -fx-mid-text-color: rgb(100, 100, 100);
+    -fx-dark-text-color: rgb(20, 20, 20);
+
+    /* A bright blue for highlighting/accenting objects.  For example: selected
+     * text; selected items in menus, lists, trees, and tables; progress bars */
+    -fx-accent: rgb(0, 80, 100);
+
+    /* color of non-focused yet selected elements */
+    -fx-selection-bar-non-focused: rgb(50, 50, 50);
+
+    -fx-font-family: "Roboto";
+    -fx-font-size: 1em;
+}
+
+.text-area .content{
+    -fx-background-color: black;
+}
+
+.button:hover{
+    -fx-background-color: -fx-shadow-highlight-color, -fx-outer-border, -fx-inner-border, -fx-body-color;
+    -fx-background-insets: 0 0 -1 0, 0, 1, 2;
+    -fx-background-radius: 3px, 3px, 2px, 1px;
+    -fx-padding: 0.333333em 0.666667em 0.333333em 0.666667em; /* 4 8 4 8 */
+    -fx-text-fill: -fx-text-base-color;
+    -fx-alignment: CENTER;
+    -fx-content-display: LEFT;
+}

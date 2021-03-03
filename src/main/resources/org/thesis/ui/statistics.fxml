@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane fx:id="rootPane" prefHeight="530.0" prefWidth="1210.0" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.thesis.ui.StatisticsController">
+   <children>
+      <TableView fx:id="statisticsTable" prefHeight="474.0" prefWidth="1210.0" GridPane.hgrow="ALWAYS" GridPane.vgrow="ALWAYS">
+        <columns>
+            <TableColumn fx:id="method" prefWidth="400.0" text="Method" />
+            <TableColumn fx:id="instrBefore" minWidth="0.0" prefWidth="50.0" text="Instr &#10;before" />
+            <TableColumn fx:id="instrAfter" prefWidth="50" text="Instr &#10;after" />
+
+            <TableColumn fx:id="mathOptimized" prefWidth="50" text="Math &#10;opt." />
+            <TableColumn fx:id="mathUnoptimized" prefWidth="50" text="Math &#10;unopt." />
+            <TableColumn fx:id="mathTime" prefWidth="50" text="Math &#10;time" />
+
+            <TableColumn fx:id="branchOptimized" prefWidth="50" text="Branch &#10;opt." />
+            <TableColumn fx:id="branchUnoptimized" prefWidth="50" text="Branch &#10;unopt." />
+            <TableColumn fx:id="branchTime" prefWidth="50" text="Branch &#10;time" />
+
+            <TableColumn fx:id="swCaseOptimized" prefWidth="50" text="SwCase &#10;opt." />
+            <TableColumn fx:id="swCaseUnoptimized" prefWidth="50" text="SwCase &#10;unopt." />
+            <TableColumn fx:id="swCaseTime" prefWidth="50" text="SwCase &#10;time" />
+
+            <TableColumn fx:id="tryOptimized" prefWidth="50" text="Try &#10;opt." />
+            <TableColumn fx:id="tryUnoptimized" prefWidth="50" text="Try &#10;total" />
+            <TableColumn fx:id="tryTime" prefWidth="50" text="Try &#10;time" />
+
+            <TableColumn fx:id="nopRemoved" prefWidth="50" text="Nop &#10;rem." />
+            <TableColumn fx:id="nopTime" prefWidth="50" text="Try &#10;time" />
+
+        </columns>
+      </TableView>
+      <Button fx:id="btnClose" layoutX="827.0" layoutY="488.0" mnemonicParsing="false" text="Close statistics" />
+      <Button fx:id="btnCpyCsv" layoutX="709.0" layoutY="488.0" mnemonicParsing="false" text="Copy to clipboard" />
+   </children>
+</AnchorPane>

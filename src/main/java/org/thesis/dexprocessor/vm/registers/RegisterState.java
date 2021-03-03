@@ -4,7 +4,8 @@ public enum RegisterState {
     UNINITIALIZED(0x0),
     PRIMITIVE(0x1),
     STRING(0x2),
-    OBJECT(0x3);
+    OBJECT(0x3),
+    UNKNOWN(0x5);
 
     private final int value;
 

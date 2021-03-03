@@ -4,6 +4,7 @@ import org.jf.dexlib2.builder.BuilderInstruction;
 import org.jf.dexlib2.builder.MutableMethodImplementation;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.Method;
+import org.thesis.dexprocessor.exceptions.MethodNotFoundException;
 
 import java.util.List;
 import java.util.Objects;
@@ -13,11 +14,11 @@ public class MethodManager {
     private MutableMethodImplementation mImplementation;
     private ClassDef mClass;
 
-    public MethodManager(ClassDef mClass, Method mMethod) {
+    public MethodManager(ClassDef mClass, Method mMethod, MutableMethodImplementation mImplementation) {
         this.mClass = mClass;
         this.mMethod = mMethod;
         if (mMethod != null && mMethod.getImplementation() != null) {
-            this.mImplementation = new MutableMethodImplementation(mMethod.getImplementation());
+            this.mImplementation = mImplementation;
         }
     }
 
@@ -33,9 +34,9 @@ public class MethodManager {
         return index != mImplementation.getInstructions().size() - 1;
     }
 
-    public boolean selectMethod(Method method) {
+    public boolean selectMethod(Method method, MutableMethodImplementation mImplementation) {
         mMethod = method;
-        mImplementation = new MutableMethodImplementation(Objects.requireNonNull(method.getImplementation()));
+        mImplementation = mImplementation;
         return true;
     }
 
@@ -45,10 +46,10 @@ public class MethodManager {
             && method.getParameterTypes().equals(parameters)
             && method.getReturnType().equals(returnType)
             && method.getImplementation() != null) {
-                return selectMethod(method);
+                return selectMethod(method, new MutableMethodImplementation(method.getImplementation()));
             }
         }
-        throw new RuntimeException("Could not find method " + name);
+        throw new MethodNotFoundException("Could not find method " + name);
     }
 
     public BuilderInstruction getNextInstruction(int currentInstructionIndex) {
@@ -57,5 +58,9 @@ public class MethodManager {
 
     public String getMethodName() {
         return mMethod.getName();
+    }
+
+    public Method getMethod() {
+        return mMethod;
     }
 }
